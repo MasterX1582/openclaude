@@ -22,6 +22,81 @@ If you want source builds, Bun workflows, profile launchers, or full provider ex
 
 ---
 
+## Windows Installer
+
+For Windows users, we provide standalone installers with a built-in Ollama launcher and Explorer context menu integration.
+
+### Download
+
+Download the latest installer from the `releases/` folder:
+- **Latest**: [OpenClaude-v0.1.10-Setup.exe](releases/OpenClaude-v0.1.10-Setup.exe) (57.3 MB)
+
+### Features
+
+- **Ollama Launcher**: Automatically detects Ollama, lists available models, and configures environment variables
+- **Explorer Context Menu**: Right-click any folder → "Open folder with OpenClaude"
+- **Skip Permissions Mode**: Optional context menu for trusted directories (bypasses permission prompts)
+- **Standalone Executables**: No dependencies required (Node.js, Bun, or other tools not needed)
+- **Optional PATH Integration**: Add OpenClaude to system PATH during installation
+
+### First Run
+
+1. Install OpenClaude using the setup wizard
+2. Right-click any folder and select "Open folder with OpenClaude"
+3. The launcher will:
+   - Check if Ollama is running at `http://localhost:11434`
+   - List all available Ollama models grouped by family
+   - Let you select a model (saved for future use)
+   - Launch OpenClaude with the selected model
+
+### Launcher Configuration
+
+The launcher saves your model selection to `~/.openclaude/config.json`. To change models later, the launcher will prompt you on next launch.
+
+### Context Menu Options
+
+Two context menu options are installed:
+
+1. **"Open folder with OpenClaude"**: Normal mode with permission prompts
+2. **"Open folder with OpenClaude (Skip Permissions)"**: Bypasses all permission prompts (use only in trusted directories)
+
+Both options work on:
+- Folder right-click
+- Folder background (empty space) right-click
+
+### Installer Versions
+
+| Version | Features | Notes |
+|---------|----------|-------|
+| v0.1.10 | Launcher arg forwarding | **Latest** - Launcher correctly passes `--dangerously-skip-permissions` |
+| v0.1.9 | Version increment | Same features as v0.1.8 |
+| v0.1.8 | PowerShell launch fix | Fixed skip permissions to keep terminal open |
+| v0.1.7 | Skip permissions option | Added second context menu (had terminal closing bug) |
+| v0.1.6 | Context menu integration | First version with Explorer integration |
+| v0.1.1 | First working installer | Basic installer with executables |
+| v0.1.0 | Initial build | First compiled version |
+
+### Manual Build
+
+To build the installer yourself:
+
+```powershell
+# Build source
+bun run build
+
+# Compile executables
+bun run compile
+
+# Create installer (requires Inno Setup)
+bun run installer
+```
+
+Requires:
+- Bun 1.3.11+
+- Inno Setup 6.4+ (for installer creation)
+
+---
+
 ## Beginner Install
 
 For most users, install the npm package:
