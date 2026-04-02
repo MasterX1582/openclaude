@@ -40,7 +40,13 @@
     "doctor:report": "bun run scripts/system-check.ts --out reports/doctor-runtime.json",
     "hardening:check": "bun run smoke && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "compile": "bun run scripts/compile.ts",
+    "compile:all": "bun run scripts/compile.ts --all",
+    "installer": "bun run scripts/build-installer.ts",
+    "installer:zip": "bun run scripts/build-installer.ts --zip",
+    "package": "bun run scripts/package.ts",
+    "package:all": "bun run scripts/package.ts --all"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",

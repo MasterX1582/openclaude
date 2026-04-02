@@ -101,8 +101,9 @@ function runProcess(command: string, args: string[], env: NodeJS.ProcessEnv): Pr
   return new Promise(resolve => {
     const child = spawn(command, args, {
       cwd: process.cwd(),
-      env,
+      env: { ...process.env, ...env },
       stdio: 'inherit',
+      shell: true,
     })
 
     child.on('close', code => resolve(code ?? 1))
@@ -233,13 +234,14 @@ async function main(): Promise<void> {
 
   printSummary(profile, env)
 
-  const doctorCode = await runProcess('bun', ['run', 'scripts/system-check.ts'], env)
+  const bunExe = process.execPath
+  const doctorCode = await runProcess(bunExe, ['run', 'scripts/system-check.ts'], env)
   if (doctorCode !== 0) {
     console.error('Runtime doctor failed. Fix configuration before launching.')
     process.exit(doctorCode)
   }
 
-  const buildCode = await runProcess('bun', ['run', 'build'], env)
+  const buildCode = await runProcess(bunExe, ['run', 'build'], env)
   if (buildCode !== 0) {
     process.exit(buildCode)
   }
