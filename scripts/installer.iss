@@ -2,7 +2,7 @@
 ; Generates a professional Windows installer
 
 #define MyAppName "OpenClaude"
-#define MyAppVersion "0.1.10"
+#define MyAppVersion "0.1.11"
 #define MyAppPublisher "OpenClaude Contributors"
 #define MyAppURL "https://gitlawb.com/z6MkqDnb7Siv3Cwj7pGJq4T5EsUisECqR8KpnDLwcaZq5TPr/openclaude"
 #define MyAppExeName "openclaude.exe"
