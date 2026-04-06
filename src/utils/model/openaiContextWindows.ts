@@ -23,9 +23,13 @@ const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
   'gpt-4.1-nano':             1_047_576,
   'gpt-4-turbo':              128_000,
   'gpt-4':                     8_192,
+  'o1':                       200_000,
+  'o1-mini':                  128_000,
+  'o1-preview':               128_000,
+  'o1-pro':                   200_000,
+  'o3':                       200_000,
   'o3-mini':                  200_000,
   'o4-mini':                  200_000,
-  'o3':                       200_000,
 
   // DeepSeek (V3: 128k context per official docs)
   'deepseek-chat':            128_000,
@@ -50,9 +54,11 @@ const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-2.5-flash':       1_048_576,
 
   // Ollama local models
-  'llama3.3:70b':               8_192,
-  'llama3.1:8b':                8_192,
-  'llama3.2:3b':                8_192,
+  // Llama 3.1+ models support 128k context natively (Meta official specs).
+  // Ollama defaults to num_ctx=8192 but users can configure higher values.
+  'llama3.3:70b':             128_000,
+  'llama3.1:8b':              128_000,
+  'llama3.2:3b':              128_000,
   'qwen2.5-coder:32b':        32_768,
   'qwen2.5-coder:7b':         32_768,
   'deepseek-coder-v2:16b':    163_840,
@@ -61,6 +67,9 @@ const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
   'phi4:14b':                  16_384,
   'gemma2:27b':                 8_192,
   'codellama:13b':              16_384,
+  'llama3.2:1b':              128_000,
+  'qwen3:8b':                 128_000,
+  'codestral':                 32_768,
 }
 
 /**
@@ -80,9 +89,13 @@ const OPENAI_MAX_OUTPUT_TOKENS: Record<string, number> = {
   'gpt-4.1-nano':             32_768,
   'gpt-4-turbo':               4_096,
   'gpt-4':                     4_096,
+  'o1':                       100_000,
+  'o1-mini':                   65_536,
+  'o1-preview':                32_768,
+  'o1-pro':                   100_000,
+  'o3':                       100_000,
   'o3-mini':                  100_000,
   'o4-mini':                  100_000,
-  'o3':                       100_000,
 
   // DeepSeek
   'deepseek-chat':              8_192,
@@ -118,11 +131,18 @@ const OPENAI_MAX_OUTPUT_TOKENS: Record<string, number> = {
   'phi4:14b':                   4_096,
   'gemma2:27b':                 4_096,
   'codellama:13b':              4_096,
+  'llama3.2:1b':                4_096,
+  'qwen3:8b':                   8_192,
+  'codestral':                   8_192,
 }
 
 function lookupByModel<T>(table: Record<string, T>, model: string): T | undefined {
   if (table[model] !== undefined) return table[model]
-  for (const key of Object.keys(table)) {
+  // Sort keys by length descending so the most specific prefix wins.
+  // Without this, 'gpt-4-turbo-preview' could match 'gpt-4' (8k) instead
+  // of 'gpt-4-turbo' (128k) depending on V8's key iteration order.
+  const sortedKeys = Object.keys(table).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
     if (model.startsWith(key)) return table[key]
   }
   return undefined

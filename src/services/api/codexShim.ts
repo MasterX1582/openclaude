@@ -85,7 +85,7 @@ function makeUsage(usage?: {
 }
 
 function makeMessageId(): string {
-  return `msg_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+  return `msg_${crypto.randomUUID().replace(/-/g, '')}`
 }
 
 function normalizeToolUseId(toolUseId: string | undefined): {
@@ -264,7 +264,8 @@ export function convertAnthropicMessagesToResponsesInput(
 
     if (role === 'assistant') {
       const textBlocks = Array.isArray(content)
-        ? content.filter((block: { type?: string }) => block.type !== 'tool_use')
+        ? content.filter((block: { type?: string }) =>
+            block.type !== 'tool_use' && block.type !== 'thinking')
         : content
       const parts = convertContentBlocksToResponsesParts(textBlocks, 'assistant')
       if (parts.length > 0) {
@@ -562,7 +563,7 @@ export async function performCodexRequest(options: {
     throw APIError.generate(
       response.status, errorResponse,
       `Codex API error ${response.status}: ${errorBody}`,
-      response.headers as unknown as Record<string, string>,
+      response.headers as unknown as Headers,
     )
   }
 
@@ -645,7 +646,7 @@ export async function collectCodexCompletedResponse(
     if (event.event === 'response.failed') {
       const msg = event.data?.response?.error?.message ??
         event.data?.error?.message ?? 'Codex response failed'
-      throw APIError.generate(500, undefined, msg, {} as Record<string, string>)
+      throw APIError.generate(500, undefined, msg, new Headers())
     }
 
     if (
@@ -660,7 +661,7 @@ export async function collectCodexCompletedResponse(
   if (!completedResponse) {
     throw APIError.generate(
       500, undefined, 'Codex response ended without a completed payload',
-      {} as Record<string, string>,
+      new Headers(),
     )
   }
 
@@ -819,7 +820,7 @@ export async function* codexStreamToAnthropic(
     if (event.event === 'response.failed') {
       const msg = payload?.response?.error?.message ??
         payload?.error?.message ?? 'Codex response failed'
-      throw APIError.generate(500, undefined, msg, {} as Record<string, string>)
+      throw APIError.generate(500, undefined, msg, new Headers())
     }
   }
 
