@@ -11,7 +11,8 @@ import { join } from 'path'
 import { homedir } from 'os'
 
 const OLLAMA_DEFAULT_URL = 'http://localhost:11434'
-const CONFIG_FILE = join(homedir(), '.openclaude', 'config.json')
+const CLAUDE_CONFIG_FILE = join(homedir(), '.claude.json')
+const LAUNCHER_CONFIG_FILE = join(homedir(), '.openclaude', 'launcher-cache.json')
 
 interface OllamaModel {
   name: string
@@ -32,6 +33,21 @@ interface LauncherConfig {
   ollamaUrl: string
   selectedModel: string | null
   lastUsed: string
+}
+
+interface ProviderProfile {
+  id: string
+  name: string
+  provider: 'openai' | 'anthropic'
+  baseUrl: string
+  model: string
+  apiKey?: string
+}
+
+interface ClaudeConfig {
+  providerProfiles?: ProviderProfile[]
+  activeProviderProfileId?: string
+  [key: string]: unknown
 }
 
 // ANSI colors
@@ -145,8 +161,8 @@ async function selectModel(models: OllamaModel[]): Promise<string | null> {
 
 async function loadConfig(): Promise<LauncherConfig | null> {
   try {
-    if (!existsSync(CONFIG_FILE)) return null
-    const content = await Bun.file(CONFIG_FILE).text()
+    if (!existsSync(LAUNCHER_CONFIG_FILE)) return null
+    const content = await Bun.file(LAUNCHER_CONFIG_FILE).text()
     return JSON.parse(content)
   } catch {
     return null
@@ -158,7 +174,60 @@ async function saveConfig(config: LauncherConfig): Promise<void> {
   if (!existsSync(dir)) {
     await Bun.$`mkdir -p ${dir}`
   }
-  await Bun.write(CONFIG_FILE, JSON.stringify(config, null, 2))
+  await Bun.write(LAUNCHER_CONFIG_FILE, JSON.stringify(config, null, 2))
+}
+
+async function loadClaudeConfig(): Promise<ClaudeConfig> {
+  try {
+    if (!existsSync(CLAUDE_CONFIG_FILE)) return {}
+    const content = await Bun.file(CLAUDE_CONFIG_FILE).text()
+    return JSON.parse(content)
+  } catch {
+    return {}
+  }
+}
+
+async function saveClaudeConfig(config: ClaudeConfig): Promise<void> {
+  await Bun.write(CLAUDE_CONFIG_FILE, JSON.stringify(config, null, 2))
+}
+
+async function updateProviderProfile(ollamaUrl: string, model: string): Promise<void> {
+  const claudeConfig = await loadClaudeConfig()
+  
+  // Initialize provider profiles if not present
+  if (!claudeConfig.providerProfiles) {
+    claudeConfig.providerProfiles = []
+  }
+  
+  // Find or create Ollama profile
+  const profileId = 'openclaude-launcher-ollama'
+  let profile = claudeConfig.providerProfiles.find(p => p.id === profileId)
+  
+  if (profile) {
+    // Update existing profile
+    profile.baseUrl = `${ollamaUrl}/v1`
+    profile.model = model
+  } else {
+    // Create new profile
+    profile = {
+      id: profileId,
+      name: 'Ollama (Launcher)',
+      provider: 'openai',
+      baseUrl: `${ollamaUrl}/v1`,
+      model: model
+    }
+    claudeConfig.providerProfiles.push(profile)
+  }
+  
+  // Set as active profile
+  claudeConfig.activeProviderProfileId = profileId
+  
+  await saveClaudeConfig(claudeConfig)
+  
+  log(`\n✅ Provider profile saved to ~/.claude.json`, 'green')
+  log(`   Profile: ${profile.name}`, 'dim')
+  log(`   Model: ${model}`, 'dim')
+  log(`   Base URL: ${profile.baseUrl}`, 'dim')
 }
 
 async function findOpenClaude(): Promise<string | null> {
@@ -251,10 +320,13 @@ async function main() {
     process.exit(1)
   }
   
-  // Save config
+  // Save launcher cache
   config.selectedModel = selectedModel
   config.lastUsed = new Date().toISOString()
   await saveConfig(config)
+  
+  // Update .claude.json with provider profile
+  await updateProviderProfile(config.ollamaUrl, selectedModel)
   
   log(`\n✅ Selected: ${selectedModel}`, 'green')
   
@@ -268,21 +340,16 @@ async function main() {
   
   log(`📍 Found: ${openClaudePath}`, 'dim')
   
-  // Set environment and launch
+  // Launch OpenClaude (it will read .claude.json for provider profile)
   log('\n🚀 Launching OpenClaude...', 'bright')
+  log('   Using provider profile from ~/.claude.json', 'dim')
+  log('   MCP servers and other settings will be respected', 'dim')
   log('─'.repeat(60), 'dim')
   console.log()
   
-  const env = {
-    ...process.env,
-    CLAUDE_CODE_USE_OPENAI: '1',
-    OPENAI_BASE_URL: `${config.ollamaUrl}/v1`,
-    OPENAI_MODEL: selectedModel,
-  }
-  
-  // Launch OpenClaude
+  // Launch OpenClaude without env vars - it will use .claude.json
   const child = spawn(openClaudePath, process.argv.slice(2), {
-    env,
+    env: process.env,
     stdio: 'inherit',
     shell: false
   })
