@@ -11,7 +11,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 
 const OLLAMA_DEFAULT_URL = 'http://localhost:11434'
-const CLAUDE_CONFIG_FILE = join(homedir(), '.claude.json')
+const OPENCLAUDE_CONFIG_FILE = join(homedir(), '.openclaude.json')
 const LAUNCHER_CONFIG_FILE = join(homedir(), '.openclaude', 'launcher-cache.json')
 
 interface OllamaModel {
@@ -177,31 +177,31 @@ async function saveConfig(config: LauncherConfig): Promise<void> {
   await Bun.write(LAUNCHER_CONFIG_FILE, JSON.stringify(config, null, 2))
 }
 
-async function loadClaudeConfig(): Promise<ClaudeConfig> {
+async function loadOpenClaudeConfig(): Promise<ClaudeConfig> {
   try {
-    if (!existsSync(CLAUDE_CONFIG_FILE)) return {}
-    const content = await Bun.file(CLAUDE_CONFIG_FILE).text()
+    if (!existsSync(OPENCLAUDE_CONFIG_FILE)) return {}
+    const content = await Bun.file(OPENCLAUDE_CONFIG_FILE).text()
     return JSON.parse(content)
   } catch {
     return {}
   }
 }
 
-async function saveClaudeConfig(config: ClaudeConfig): Promise<void> {
-  await Bun.write(CLAUDE_CONFIG_FILE, JSON.stringify(config, null, 2))
+async function saveOpenClaudeConfig(config: ClaudeConfig): Promise<void> {
+  await Bun.write(OPENCLAUDE_CONFIG_FILE, JSON.stringify(config, null, 2))
 }
 
 async function updateProviderProfile(ollamaUrl: string, model: string): Promise<void> {
-  const claudeConfig = await loadClaudeConfig()
+  const openclaudeConfig = await loadOpenClaudeConfig()
   
   // Initialize provider profiles if not present
-  if (!claudeConfig.providerProfiles) {
-    claudeConfig.providerProfiles = []
+  if (!openclaudeConfig.providerProfiles) {
+    openclaudeConfig.providerProfiles = []
   }
   
   // Find or create Ollama profile
   const profileId = 'openclaude-launcher-ollama'
-  let profile = claudeConfig.providerProfiles.find(p => p.id === profileId)
+  let profile = openclaudeConfig.providerProfiles.find((p: ProviderProfile) => p.id === profileId)
   
   if (profile) {
     // Update existing profile
@@ -216,15 +216,15 @@ async function updateProviderProfile(ollamaUrl: string, model: string): Promise<
       baseUrl: `${ollamaUrl}/v1`,
       model: model
     }
-    claudeConfig.providerProfiles.push(profile)
+    openclaudeConfig.providerProfiles.push(profile)
   }
   
   // Set as active profile
-  claudeConfig.activeProviderProfileId = profileId
+  openclaudeConfig.activeProviderProfileId = profileId
   
-  await saveClaudeConfig(claudeConfig)
+  await saveOpenClaudeConfig(openclaudeConfig)
   
-  log(`\n✅ Provider profile saved to ~/.claude.json`, 'green')
+  log(`\n✅ Provider profile saved to ~/.openclaude.json`, 'green')
   log(`   Profile: ${profile.name}`, 'dim')
   log(`   Model: ${model}`, 'dim')
   log(`   Base URL: ${profile.baseUrl}`, 'dim')
@@ -340,14 +340,14 @@ async function main() {
   
   log(`📍 Found: ${openClaudePath}`, 'dim')
   
-  // Launch OpenClaude (it will read .claude.json for provider profile)
+  // Launch OpenClaude (it will read .openclaude.json for provider profile)
   log('\n🚀 Launching OpenClaude...', 'bright')
-  log('   Using provider profile from ~/.claude.json', 'dim')
+  log('   Using provider profile from ~/.openclaude.json', 'dim')
   log('   MCP servers and other settings will be respected', 'dim')
   log('─'.repeat(60), 'dim')
   console.log()
   
-  // Launch OpenClaude without env vars - it will use .claude.json
+  // Launch OpenClaude without env vars - it will use .openclaude.json
   const child = spawn(openClaudePath, process.argv.slice(2), {
     env: process.env,
     stdio: 'inherit',

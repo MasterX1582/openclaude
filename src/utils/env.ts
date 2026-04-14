@@ -21,8 +21,9 @@ export const getGlobalClaudeFile = memoize((): string => {
     return join(getClaudeConfigHomeDir(), '.config.json')
   }
 
-  const filename = `.claude${fileSuffixForOauthConfig()}.json`
-  return join(process.env.CLAUDE_CONFIG_DIR || homedir(), filename)
+  // OpenClaude uses .openclaude.json to avoid conflicts with Claude Code
+  const filename = `.openclaude${fileSuffixForOauthConfig()}.json`
+  return join(process.env.OPENCLAUDE_CONFIG_DIR || process.env.CLAUDE_CONFIG_DIR || homedir(), filename)
 })
 
 const hasInternetAccess = memoize(async (): Promise<boolean> => {
