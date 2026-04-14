@@ -67,6 +67,7 @@ import { isBilledAsExtraUsage } from '../../utils/extraUsage.js';
 import { getFastModeUnavailableReason, isFastModeAvailable, isFastModeCooldown, isFastModeEnabled, isFastModeSupportedByModel } from '../../utils/fastMode.js';
 import { isFullscreenEnvEnabled } from '../../utils/fullscreen.js';
 import type { PromptInputHelpers } from '../../utils/handlePromptSubmit.js';
+import { extractDraggedFilePaths } from '../../utils/dragDropPaths.js';
 import { getImageFromClipboard, PASTE_THRESHOLD } from '../../utils/imagePaste.js';
 import type { ImageDimensions } from '../../utils/imageResizer.js';
 import { cacheImagePath, storeImage } from '../../utils/imageStore.js';
@@ -251,14 +252,24 @@ function PromptInput({
     show: false
   });
   const [cursorOffset, setCursorOffset] = useState<number>(input.length);
-  // Track the last input value set via internal handlers so we can detect
-  // external input changes (e.g. speech-to-text injection) and move cursor to end.
+  // Track the last input value set via internal handlers so external updates
+  // (for example speech-to-text injection) can still move the cursor to end
+  // without clobbering a pending internal keystroke during render.
   const lastInternalInputRef = React.useRef(input);
-  if (input !== lastInternalInputRef.current) {
-    // Input changed externally (not through any internal handler) — move cursor to end
-    setCursorOffset(input.length);
+  const lastPropInputRef = React.useRef(input);
+  React.useLayoutEffect(() => {
+    if (input === lastPropInputRef.current) {
+      return;
+    }
+
+    lastPropInputRef.current = input;
+    if (input === lastInternalInputRef.current) {
+      return;
+    }
+
     lastInternalInputRef.current = input;
-  }
+    setCursorOffset(prev => prev === input.length ? prev : input.length);
+  }, [input]);
   // Wrap onInputChange to track internal changes before they trigger re-render
   const trackAndSetInput = React.useCallback((value: string) => {
     lastInternalInputRef.current = value;
@@ -1204,6 +1215,22 @@ function PromptInput({
     // Clean up pasted text - strip ANSI escape codes and normalize line endings and tabs
     let text = stripAnsi(rawText).replace(/\r/g, '\n').replaceAll('\t', '    ');
 
+    // Detect file paths from drag-and-drop and convert to @mentions.
+    // When files are dragged into the terminal, the terminal sends their
+    // absolute paths via bracketed paste. Image files are handled by the
+    // image paste handler upstream; here we handle non-image files by
+    // converting them to @mentions so they get attached on submit.
+    const draggedPaths = extractDraggedFilePaths(text);
+    if (draggedPaths.length > 0) {
+      const mentions = draggedPaths
+        .map(p => (p.includes(' ') || p.includes(':') ? `@"${p}"` : `@${p}`))
+        .join(' ');
+      // Ensure spacing around the mention(s) relative to existing input
+      const charBefore = input[cursorOffset - 1];
+      const prefix = charBefore && !/\s/.test(charBefore) ? ' ' : '';
+      text = prefix + mentions + ' ';
+    }
+
     // Match typed/auto-suggest: `!cmd` pasted into empty input enters bash mode.
     if (input.length === 0) {
       const pastedMode = getModeFromInput(text);
@@ -1245,12 +1272,23 @@ function PromptInput({
     if (isNonSpacePrintable(input, key)) return ' ' + input;
     return input;
   }, []);
+  // Ref mirrors cursorOffset for use in synchronous loops (e.g. multi-image
+  // paste) where React batches state updates and the closure value is stale.
+  const cursorOffsetRef = useRef(cursorOffset);
+  cursorOffsetRef.current = cursorOffset;
+
   function insertTextAtCursor(text: string) {
-    // Push current state to buffer before inserting
-    pushToBuffer(input, cursorOffset, pastedContents);
-    const newInput = input.slice(0, cursorOffset) + text + input.slice(cursorOffset);
+    // Use refs for input/cursor so back-to-back calls in the same event
+    // (e.g. onImagePaste loop for multiple dragged images) chain correctly
+    // instead of each reading the same stale closure values.
+    const currentInput = lastInternalInputRef.current;
+    const currentOffset = cursorOffsetRef.current;
+    pushToBuffer(currentInput, currentOffset, pastedContents);
+    const newInput = currentInput.slice(0, currentOffset) + text + currentInput.slice(currentOffset);
     trackAndSetInput(newInput);
-    setCursorOffset(cursorOffset + text.length);
+    const newOffset = currentOffset + text.length;
+    cursorOffsetRef.current = newOffset;
+    setCursorOffset(newOffset);
   }
   const doublePressEscFromEmpty = useDoublePress(() => {}, () => onShowMessageSelector());
 
@@ -2173,7 +2211,7 @@ function PromptInput({
     multiline: true,
     onSubmit,
     onChange,
-    value: historyMatch ? getValueFromInput(typeof historyMatch === 'string' ? historyMatch : historyMatch.display) : input,
+    value: isSearchingHistory && historyMatch ? getValueFromInput(typeof historyMatch === 'string' ? historyMatch : historyMatch.display) : input,
     // History navigation is handled via TextInput props (onHistoryUp/onHistoryDown),
     // NOT via useKeybindings. This allows useTextInput's upOrHistoryUp/downOrHistoryDown
     // to try cursor movement first and only fall through to history navigation when the
